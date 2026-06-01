@@ -1,6 +1,6 @@
-# Kubernetes Custom Scheduler
+# Kubernetes Scheduler
 
-Projeto desenvolvido para a disciplina de Laboratório de Sistemas Operacionais.
+Projeto desenvolvido para a disciplina de Sistemas Operacionais.
 
 ## Objetivo
 
@@ -98,7 +98,4 @@ kubectl get pods -o wide
 * kubectl
 * Git / GitHub
 
-## Autor
-
-Luiz Felipe Hilgert
 
