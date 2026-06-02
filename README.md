@@ -44,7 +44,7 @@ Cluster criado com 3 nós:
 ## Criar cluster
 
 ```bash
-kind create cluster --config kind-cluster.yaml
+kind create cluster --config config.yaml
 ```
 
 ---
