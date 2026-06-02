@@ -1,4 +1,4 @@
-# Kubernetes Scheduler Simulation
+# Kubernetes Scheduler
 
 Projeto acadêmico para simular um escalonador distribuído em Kubernetes usando Python.
 
