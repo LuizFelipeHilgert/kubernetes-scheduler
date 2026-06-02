@@ -36,16 +36,7 @@ available = {name: dict(res) for name, res in WORKERS.items()}
 
 
 def choose_worker(pod: dict) -> str | None:
-    """
-    Escolhe o worker com mais recursos disponíveis (most-available).
 
-    O score é calculado como a média dos recursos disponíveis normalizados
-    pela capacidade inicial, evitando que o disco domine por ter valores
-    absolutos maiores.
-
-    Retorna o nome do worker escolhido, ou None se nenhum tiver recursos
-    suficientes para o pod.
-    """
     best_worker = None
     best_score = -1.0
 
