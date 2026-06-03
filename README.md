@@ -203,6 +203,5 @@ Containers utilizados:
 # Observações
 
 - CPU e memória são obtidas em tempo real através do Metrics Server.
-- O armazenamento (disco) é modelado na aplicação para fins de simulação.
-- O projeto tem finalidade acadêmica e educacional.
-- O scheduler implementado é um scheduler customizado em Python e não substitui o scheduler padrão do Kubernetes.
+- O armazenamento é modelado na aplicação para fins de simulação.
+
