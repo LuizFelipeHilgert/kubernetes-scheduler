@@ -1,17 +1,29 @@
 import os
+import subprocess
 
-WORKERS = {
-    "kind-worker": {
-        "cpu": 8,
-        "ram": 16,
-        "disk": 100,
-    },
-    "kind-worker2": {
-        "cpu": 4,
-        "ram": 8,
-        "disk": 200,
-    },
-}
+
+def get_workers():
+    result = subprocess.check_output(
+        ["kubectl", "get", "nodes", "-o", "name"],
+        text=True
+    )
+
+    workers = {}
+
+    for line in result.splitlines():
+        node_name = line.replace("node/", "")
+
+        if "control-plane" not in node_name:
+            workers[node_name] = {
+                "cpu": 8,
+                "ram": 16,
+                "disk": 100
+            }
+
+    return workers
+
+
+WORKERS = get_workers()
 
 PODS = [
     {"name": "pod1",  "cpu": 1, "ram": 1, "disk": 10},
@@ -28,32 +40,31 @@ PODS = [
     {"name": "pod12", "cpu": 1, "ram": 2, "disk": 15},
 ]
 
-# Capacidade inicial de cada worker, usada para normalizar o score.
 INITIAL_CAPACITY = {name: dict(res) for name, res in WORKERS.items()}
-
-# Estado mutável dos workers (recursos disponíveis).
 available = {name: dict(res) for name, res in WORKERS.items()}
 
 
-def choose_worker(pod: dict) -> str | None:
-
+def choose_worker(pod):
     best_worker = None
-    best_score = -1.0
+    best_score = -1
 
     for name, resources in available.items():
+
         fits = (
-            resources["cpu"]  >= pod["cpu"]  and
-            resources["ram"]  >= pod["ram"]  and
-            resources["disk"] >= pod["disk"]
+            resources["cpu"] >= pod["cpu"]
+            and resources["ram"] >= pod["ram"]
+            and resources["disk"] >= pod["disk"]
         )
+
         if not fits:
             continue
 
         capacity = INITIAL_CAPACITY[name]
+
         score = (
-            resources["cpu"]  / capacity["cpu"]  +
-            resources["ram"]  / capacity["ram"]  +
-            resources["disk"] / capacity["disk"]
+            resources["cpu"] / capacity["cpu"]
+            + resources["ram"] / capacity["ram"]
+            + resources["disk"] / capacity["disk"]
         ) / 3
 
         if score > best_score:
@@ -63,9 +74,8 @@ def choose_worker(pod: dict) -> str | None:
     return best_worker
 
 
-def generate_yaml(pod_name: str, worker: str) -> str:
-    return f"""\
-apiVersion: v1
+def generate_yaml(pod_name, worker):
+    return f"""apiVersion: v1
 kind: Pod
 metadata:
   name: {pod_name}
@@ -78,36 +88,68 @@ spec:
 """
 
 
-def main() -> None:
+def main():
+
     os.makedirs("pods", exist_ok=True)
+
+    print("\nWORKERS DETECTADOS NO CLUSTER:\n")
+
+    for worker in WORKERS:
+        print(worker)
+
+    print("\nINICIANDO ESCALONAMENTO...\n")
 
     unscheduled = []
 
     for pod in PODS:
+
         worker = choose_worker(pod)
 
         if worker:
-            available[worker]["cpu"]  -= pod["cpu"]
-            available[worker]["ram"]  -= pod["ram"]
+
+            available[worker]["cpu"] -= pod["cpu"]
+            available[worker]["ram"] -= pod["ram"]
             available[worker]["disk"] -= pod["disk"]
 
             print(f"{pod['name']} -> {worker}")
 
-            yaml_content = generate_yaml(pod["name"], worker)
-            with open(f"pods/{pod['name']}.yaml", "w") as f:
+            yaml_content = generate_yaml(
+                pod["name"],
+                worker
+            )
+
+            with open(
+                f"pods/{pod['name']}.yaml",
+                "w"
+            ) as f:
                 f.write(yaml_content)
+
         else:
-            print(f"{pod['name']} -> SEM RECURSOS")
+
+            print(
+                f"{pod['name']} -> SEM RECURSOS"
+            )
+
             unscheduled.append(pod)
 
-    print("\n--- RECURSOS FINAIS ---\n")
+    print("\nRECURSOS FINAIS\n")
+
     for name, resources in available.items():
-        print(f"{name}: {resources}")
+        print(name, resources)
 
     if unscheduled:
-        print(f"\n--- PODS NÃO AGENDADOS ({len(unscheduled)}) ---\n")
+
+        print(
+            f"\nPODS NÃO AGENDADOS ({len(unscheduled)})\n"
+        )
+
         for pod in unscheduled:
-            print(f"  {pod['name']} (cpu={pod['cpu']}, ram={pod['ram']}, disk={pod['disk']})")
+            print(
+                f"{pod['name']} "
+                f"(cpu={pod['cpu']}, "
+                f"ram={pod['ram']}, "
+                f"disk={pod['disk']})"
+            )
 
 
 if __name__ == "__main__":
