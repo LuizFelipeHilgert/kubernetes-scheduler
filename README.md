@@ -1,25 +1,31 @@
 # Kubernetes Scheduler
 
-Projeto acadêmico para simular um escalonador distribuído em Kubernetes usando Python.
+Projeto acadêmico desenvolvido para estudar conceitos de escalonamento distribuído utilizando Kubernetes, Python e Docker.
+
+O projeto implementa um scheduler customizado capaz de consultar recursos disponíveis nos nós do cluster e distribuir cargas de trabalho entre os workers de acordo com a disponibilidade de recursos.
 
 ---
 
 # Objetivo
 
-O projeto simula o funcionamento de um scheduler distribuído que:
+O objetivo deste projeto é simular o funcionamento de um scheduler distribuído em um cluster Kubernetes.
 
-- coleta recursos disponíveis dos nós do cluster
-- distribui tarefas entre os workers
-- calcula uso de CPU
-- calcula uso de memória RAM
-- calcula uso de disco
-- mostra o estado final dos nós após a execução
+O scheduler:
 
-Toda a execução acontece em um cluster Kubernetes local criado com Kind.
+- Detecta automaticamente os workers do cluster Kubernetes.
+- Consulta métricas reais de CPU dos nós.
+- Consulta métricas reais de memória RAM dos nós.
+- Utiliza armazenamento (disco) modelado na aplicação.
+- Calcula a capacidade disponível de cada worker.
+- Distribui pods entre os workers de acordo com os recursos disponíveis.
+- Identifica pods que não podem ser agendados por falta de recursos.
+- Gera automaticamente os manifestos YAML dos pods.
+
+Toda a execução ocorre em um cluster Kubernetes local criado com Kind.
 
 ---
 
-# Tecnologias utilizadas
+# Tecnologias Utilizadas
 
 - Python 3
 - Kubernetes
@@ -30,18 +36,40 @@ Toda a execução acontece em um cluster Kubernetes local criado com Kind.
 
 ---
 
-# Estrutura do cluster
+# Estrutura do Cluster
 
-Cluster criado com 3 nós:
+O cluster foi criado utilizando Kind e possui:
 
 - 1 Control Plane
 - 2 Worker Nodes
 
 ---
 
-# Execução do projeto
+# Algoritmo de Escalonamento
 
-## Criar cluster
+O scheduler consulta os workers disponíveis através do comando:
+
+```bash
+kubectl get nodes
+```
+
+Em seguida, obtém métricas reais de CPU e memória através do Metrics Server:
+
+```bash
+kubectl top nodes
+```
+
+Para cada pod é calculado um score baseado na disponibilidade dos recursos do worker.
+
+O worker com maior capacidade relativa disponível é escolhido para receber o pod.
+
+Caso nenhum worker possua recursos suficientes, o pod é marcado como não agendado.
+
+---
+
+# Execução do Projeto
+
+## 1. Criar o Cluster
 
 ```bash
 kind create cluster --config config.yaml
@@ -49,69 +77,94 @@ kind create cluster --config config.yaml
 
 ---
 
-## Verificar nodes
+## 2. Verificar os Nós
 
 ```bash
 kubectl get nodes
 ```
 
-### Resultado:
+### Resultado
 
 ![Nodes](./screenshots/kubectl-get-nodes.png)
 
 ---
 
-## Verificar pods
+## 3. Verificar os Pods do Cluster
 
 ```bash
-kubectl get pods -o wide
+kubectl get pods -A
 ```
 
-### Resultado:
+### Resultado
 
 ![Pods](./screenshots/kubectl-get-pods.png)
 
 ---
 
-## Executar scheduler
-
-```bash
-python3 scheduler.py
-```
-
-### Resultado:
-
-![Scheduler](./screenshots/scheduler-output.png)
-
----
-
-## Coleta de métricas do Kubernetes
+## 4. Verificar Métricas dos Nós
 
 ```bash
 kubectl top nodes
 ```
 
-### Resultado:
+### Resultado
 
 ![Top Nodes](./screenshots/kubectl-top-nodes.png)
 
 ---
 
-# Docker Desktop - Containers do Cluster
+## 5. Executar o Scheduler
 
-Visualização dos containers criados pelo Kind:
+```bash
+python3 scheduler.py
+```
+
+O scheduler:
+
+- Detecta os workers.
+- Consulta métricas reais de CPU e memória.
+- Realiza o escalonamento.
+- Gera automaticamente os arquivos YAML dos pods.
+
+### Resultado
+
+![Scheduler](./screenshots/scheduler-output.png)
+
+---
+
+## 6. Aplicar os Pods no Cluster
+
+```bash
+kubectl apply -f pods/
+```
+
+---
+
+## 7. Verificar Distribuição dos Pods
+
+```bash
+kubectl get pods -o wide
+```
+
+---
+
+# Docker Desktop
+
+O cluster Kubernetes criado pelo Kind é executado dentro de containers Docker.
+
+Containers utilizados:
 
 - kind-control-plane
 - kind-worker
 - kind-worker2
 
-### Resultado:
+### Resultado
 
 ![Docker Cluster](./screenshots/docker-cluster.png)
 
 ---
 
-# Métricas dos nós
+# Métricas dos Containers
 
 ## Control Plane
 
@@ -131,21 +184,25 @@ Visualização dos containers criados pelo Kind:
 
 ---
 
-# Exemplo de saída final do scheduler
+# Estrutura do Projeto
 
 ```text
-RECURSOS INICIAIS
-
-kind-worker {'cpu': 2, 'ram': 8, 'disk': 200}
-kind-worker2 {'cpu': 2, 'ram': 8, 'disk': 200}
-
-Executando tarefa-1...
-Executando tarefa-2...
-Executando tarefa-3...
-
-RECURSOS FINAIS
-
-kind-worker {'cpu': 0, 'ram': 6, 'disk': 20}
-kind-worker2 {'cpu': 0, 'ram': 4, 'disk': 165}
+.
+├── config.yaml
+├── scheduler.py
+├── README.md
+├── pods/
+│   ├── pod1.yaml
+│   ├── pod2.yaml
+│   └── ...
+└── screenshots/
 ```
 
+---
+
+# Observações
+
+- CPU e memória são obtidas em tempo real através do Metrics Server.
+- O armazenamento (disco) é modelado na aplicação para fins de simulação.
+- O projeto tem finalidade acadêmica e educacional.
+- O scheduler implementado é um scheduler customizado em Python e não substitui o scheduler padrão do Kubernetes.
