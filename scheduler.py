@@ -3,22 +3,68 @@ import subprocess
 
 
 def get_workers():
-    result = subprocess.check_output(
+
+    workers = {}
+
+    nodes_output = subprocess.check_output(
         ["kubectl", "get", "nodes", "-o", "name"],
         text=True
     )
 
-    workers = {}
+    top_output = subprocess.check_output(
+        ["kubectl", "top", "nodes", "--no-headers"],
+        text=True
+    )
 
-    for line in result.splitlines():
+    metrics = {}
+
+    for line in top_output.splitlines():
+
+        parts = line.split()
+
+        node_name = parts[0]
+
+        cpu_usage = parts[1]
+        memory_usage = parts[3]
+
+        cpu_used = int(cpu_usage.replace("m", ""))
+
+        if memory_usage.endswith("Mi"):
+            ram_used = int(memory_usage.replace("Mi", ""))
+        elif memory_usage.endswith("Gi"):
+            ram_used = int(
+                float(memory_usage.replace("Gi", "")) * 1024
+            )
+        else:
+            ram_used = 0
+
+        metrics[node_name] = {
+            "cpu_used": cpu_used,
+            "ram_used": ram_used
+        }
+
+    for line in nodes_output.splitlines():
+
         node_name = line.replace("node/", "")
 
-        if "control-plane" not in node_name:
-            workers[node_name] = {
-                "cpu": 8,
-                "ram": 16,
-                "disk": 100
-            }
+        if "control-plane" in node_name:
+            continue
+
+        cpu_used = metrics.get(
+            node_name,
+            {}
+        ).get("cpu_used", 0)
+
+        ram_used = metrics.get(
+            node_name,
+            {}
+        ).get("ram_used", 0)
+
+        workers[node_name] = {
+            "cpu": max(1, 4000 - cpu_used),
+            "ram": max(1, 8192 - ram_used),
+            "disk": 100
+        }
 
     return workers
 
@@ -26,25 +72,33 @@ def get_workers():
 WORKERS = get_workers()
 
 PODS = [
-    {"name": "pod1",  "cpu": 1, "ram": 1, "disk": 10},
-    {"name": "pod2",  "cpu": 2, "ram": 2, "disk": 20},
-    {"name": "pod3",  "cpu": 1, "ram": 1, "disk": 5},
-    {"name": "pod4",  "cpu": 3, "ram": 4, "disk": 30},
-    {"name": "pod5",  "cpu": 2, "ram": 1, "disk": 15},
-    {"name": "pod6",  "cpu": 1, "ram": 2, "disk": 10},
-    {"name": "pod7",  "cpu": 2, "ram": 3, "disk": 25},
-    {"name": "pod8",  "cpu": 1, "ram": 1, "disk": 5},
-    {"name": "pod9",  "cpu": 2, "ram": 2, "disk": 10},
-    {"name": "pod10", "cpu": 1, "ram": 1, "disk": 5},
-    {"name": "pod11", "cpu": 2, "ram": 4, "disk": 40},
-    {"name": "pod12", "cpu": 1, "ram": 2, "disk": 15},
+    {"name": "pod1", "cpu": 100, "ram": 100, "disk": 10},
+    {"name": "pod2", "cpu": 200, "ram": 200, "disk": 20},
+    {"name": "pod3", "cpu": 100, "ram": 100, "disk": 5},
+    {"name": "pod4", "cpu": 300, "ram": 400, "disk": 30},
+    {"name": "pod5", "cpu": 200, "ram": 100, "disk": 15},
+    {"name": "pod6", "cpu": 100, "ram": 200, "disk": 10},
+    {"name": "pod7", "cpu": 200, "ram": 300, "disk": 25},
+    {"name": "pod8", "cpu": 100, "ram": 100, "disk": 5},
+    {"name": "pod9", "cpu": 200, "ram": 200, "disk": 10},
+    {"name": "pod10", "cpu": 100, "ram": 100, "disk": 5},
+    {"name": "pod11", "cpu": 200, "ram": 400, "disk": 40},
+    {"name": "pod12", "cpu": 100, "ram": 200, "disk": 15},
 ]
 
-INITIAL_CAPACITY = {name: dict(res) for name, res in WORKERS.items()}
-available = {name: dict(res) for name, res in WORKERS.items()}
+INITIAL_CAPACITY = {
+    name: dict(res)
+    for name, res in WORKERS.items()
+}
+
+available = {
+    name: dict(res)
+    for name, res in WORKERS.items()
+}
 
 
 def choose_worker(pod):
+
     best_worker = None
     best_score = -1
 
@@ -75,6 +129,7 @@ def choose_worker(pod):
 
 
 def generate_yaml(pod_name, worker):
+
     return f"""apiVersion: v1
 kind: Pod
 metadata:
@@ -94,10 +149,10 @@ def main():
 
     print("\nWORKERS DETECTADOS NO CLUSTER:\n")
 
-    for worker in WORKERS:
-        print(worker)
+    for worker, resources in WORKERS.items():
+        print(f"{worker}: {resources}")
 
-    print("\nINICIANDO ESCALONAMENTO...\n")
+    print("\nESCALONAMENTO\n")
 
     unscheduled = []
 
@@ -135,12 +190,12 @@ def main():
     print("\nRECURSOS FINAIS\n")
 
     for name, resources in available.items():
-        print(name, resources)
+        print(f"{name}: {resources}")
 
     if unscheduled:
 
         print(
-            f"\nPODS NÃO AGENDADOS ({len(unscheduled)})\n"
+            f"\nPODS NÃO AGENDADOS ({len(unscheduled)}) \n"
         )
 
         for pod in unscheduled:
